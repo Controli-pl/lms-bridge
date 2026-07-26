@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  lms-control-bridge:
+    build: .
+    image: lms-control-bridge:latest
+    container_name: lms-control-bridge
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      LMS_HOST: "192.168.1.122"
+      LMS_PORT: "3483"
+      LMS_CLI_PORT: "9090"
+      PLAYER_NAME: "LMS Bridge"
+      PLAYER_MAC: "02:00:00:00:00:01"
+      HA_URL: "http://192.168.1.122:8123"       # <- adres Twojego Home Assistant
+      HA_TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJkMDI5YTA3Y2IzZDc0ODE5YTBjODRkZTBjNjAwNzBjZCIsImlhdCI6MTc4NTA4NDExMCwiZXhwIjoyMTAwNDQ0MTEwfQ.OIosYjeYbBE0asmQQqVgsPj0fKXUq19QDYsizD4s07A"   # <- wygeneruj w HA: profil użytkownika -> Long-Lived Access Tokens
+      ESP_MEDIA_PLAYER_ENTITY: "media_player.asystent_w_obudowie_media_player"  # <- entity_id playera ESP32 w HA
