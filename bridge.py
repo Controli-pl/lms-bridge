@@ -87,11 +87,7 @@ async def handle_notification(
     event = fields[1]
 
     if event == "play":
-        log.info("LMS: play -> wysyłam świeże play_media do %s (wymusza reconnect/flush bufora)", media_player_entity)
-        await call_ha_service(
-            session, ha_url, ha_token, "media_player", "play_media", media_player_entity,
-            extra={"media_content_id": stream_url, "media_content_type": "music"},
-        )
+        log.debug("LMS: play (ignorowane - 'playlist newsong' obsłuży realny start utworu)")
     elif event == "pause":
         paused = fields[2] if len(fields) > 2 else "1"
         if paused == "0":
