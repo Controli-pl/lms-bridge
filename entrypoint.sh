@@ -28,7 +28,7 @@ squeezelite \
     -o - \
     -a 16 \
     -r "${SAMPLE_RATE}-${SAMPLE_RATE}" \
-    -c pcm \
+    -c pcm,mp3,flac,ogg,alac \
     -d slimproto=info \
     2>/tmp/squeezelite.log \
     | pv -q -L "$(( SAMPLE_RATE * 2 * 2 ))" \
@@ -40,11 +40,13 @@ echo "[entrypoint] squeezelite wystartował (PID ${SQUEEZELITE_PID})"
 # subskrybować zdarzenia dla jego MAC-a.
 sleep 2
 
+PLAYER_MAC_NOCOLON="${PLAYER_MAC//:/}"
+
 exec python3 /bridge.py \
     --lms-host "${LMS_HOST}" \
     --lms-cli-port "${LMS_CLI_PORT}" \
     --player-mac "${PLAYER_MAC}" \
-    --stream-url "http://${LMS_HOST}:9000/stream.mp3?player=${PLAYER_MAC}" \
+    --stream-url "http://${LMS_HOST}:9000/stream.mp3?player=${PLAYER_MAC_NOCOLON}" \
     --ha-url "${HA_URL}" \
     --ha-token "${HA_TOKEN}" \
     --media-player-entity "${ESP_MEDIA_PLAYER_ENTITY}"
