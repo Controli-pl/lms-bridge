@@ -25,7 +25,7 @@ squeezelite \
     -n "${PLAYER_NAME}" \
     -m "${PLAYER_MAC}" \
     -o - \
-    -c pcm \
+    -c pcm,mp3,flac,ogg,alac \
     -d slimproto=info \
     > /dev/null \
     2>/tmp/squeezelite.log &
