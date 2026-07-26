@@ -2,26 +2,8 @@
 """
 Klej LMS (CLI/Telnet, port 9090) -> Home Assistant media_player.
 
-Nie dotyka audio w ogóle. Subskrybuje zdarzenia dla jednego, konkretnego
-playera (po MAC) na porcie CLI LMS, i na każde play/pause/stop/nowy-utwór
-wywołuje odpowiednią usługę media_player w Home Assistant. ESP32 sam ciąga
-audio z LMS przez zwykłe HTTP (URL podany w --stream-url), niezależnie od
-tego procesu.
-
-Format komend/notyfikacji CLI LMS wg oficjalnej dokumentacji:
-https://lyrion.org/reference/cli/general/
-https://lyrion.org/reference/cli/notifications/
-Przykład z dokumentacji: "subscribe mixer,pause<LF>" -> serwer echo'uje to
-samo, a potem asynchronicznie wysyła linie typu:
-"04:20:00:12:23:45 mixer volume 25<LF>"
-"04:20:00:12:23:45 pause<LF>"
-
-*** DO ZWERYFIKOWANIA NA ŻYWO ***
-Zanim to odpalisz w Dockerze, warto sprawdzić realny format ręcznie:
-    telnet <LMS_HOST> 9090
-    subscribe play,pause,stop,playlist
-i zagrać/zapauzować coś w LMS na tym playerze - zobaczysz dokładnie jakie
-linie faktycznie przychodzą, zanim zaufamy parsowaniu poniżej.
+Przy playlist newsong / play / resume: media_stop + pauza + play_media
+— wymusza zerwanie starego połączenia HTTP na ESP.
 """
 import argparse
 import asyncio
@@ -35,6 +17,7 @@ logging.basicConfig(level=logging.INFO, stream=sys.stderr)
 log = logging.getLogger("lms-control-bridge")
 
 RECONNECT_DELAY_S = 5
+NEWSONG_RECONNECT_GAP_S = 0.5
 
 
 async def call_ha_service(
@@ -65,6 +48,23 @@ async def call_ha_service(
         log.exception("Błąd wywołania Home Assistant %s.%s", domain, service)
 
 
+async def force_play_stream(
+    session: aiohttp.ClientSession,
+    ha_url: str,
+    ha_token: str,
+    media_player_entity: str,
+    stream_url: str,
+    reason: str,
+) -> None:
+    log.info("LMS: %s -> media_stop + play_media (reconnect)", reason)
+    await call_ha_service(session, ha_url, ha_token, "media_player", "media_stop", media_player_entity)
+    await asyncio.sleep(NEWSONG_RECONNECT_GAP_S)
+    await call_ha_service(
+        session, ha_url, ha_token, "media_player", "play_media", media_player_entity,
+        extra={"media_content_id": stream_url, "media_content_type": "music"},
+    )
+
+
 async def handle_notification(
     line: str,
     player_mac: str,
@@ -80,38 +80,39 @@ async def handle_notification(
 
     mac = fields[0]
     if mac.lower() != player_mac.lower():
-        return  # notyfikacja dla innego playera - ignorujemy
+        return
 
     if len(fields) < 2:
         return
     event = fields[1]
 
     if event == "play":
-        log.debug("LMS: play (ignorowane - 'playlist newsong' obsłuży realny start utworu)")
+        await force_play_stream(
+            session, ha_url, ha_token, media_player_entity, stream_url, "play"
+        )
     elif event == "pause":
         paused = fields[2] if len(fields) > 2 else "1"
         if paused == "0":
-            log.info("LMS: pause 0 (wznowienie) -> media_play")
-            await call_ha_service(session, ha_url, ha_token, "media_player", "media_play", media_player_entity)
+            await force_play_stream(
+                session, ha_url, ha_token, media_player_entity, stream_url, "pause 0 (resume)"
+            )
         else:
-            log.info("LMS: pause -> media_pause")
-            await call_ha_service(session, ha_url, ha_token, "media_player", "media_pause", media_player_entity)
+            log.info("LMS: pause -> media_stop (twardsze niż media_pause)")
+            await call_ha_service(
+                session, ha_url, ha_token, "media_player", "media_stop", media_player_entity
+            )
     elif event == "stop":
         log.info("LMS: stop -> media_stop")
-        await call_ha_service(session, ha_url, ha_token, "media_player", "media_stop", media_player_entity)
-    elif event == "playlist" and len(fields) > 2 and fields[2] == "newsong":
-        log.info("LMS: playlist newsong -> wysyłam świeże play_media (nowy utwór, wymuszamy reconnect)")
         await call_ha_service(
-            session, ha_url, ha_token, "media_player", "play_media", media_player_entity,
-            extra={"media_content_id": stream_url, "media_content_type": "music"},
+            session, ha_url, ha_token, "media_player", "media_stop", media_player_entity
+        )
+    elif event == "playlist" and len(fields) > 2 and fields[2] == "newsong":
+        await force_play_stream(
+            session, ha_url, ha_token, media_player_entity, stream_url, "playlist newsong"
         )
     elif event == "mixer" and len(fields) > 3 and fields[2] == "volume":
         raw_volume = fields[3]
         try:
-            # LMS zgłasza 0-100; może być też względne (np. "+5"/"-5") przy
-            # niektórych operacjach - to obsługujemy tu tylko wartość
-            # absolutną. Względne zmiany na razie ignorujemy (do ew.
-            # dopracowania, jeśli się okażą potrzebne w praktyce).
             level = int(raw_volume)
             volume_level = max(0.0, min(1.0, level / 100.0))
         except ValueError:
@@ -175,4 +176,3 @@ if __name__ == "__main__":
         args.lms_host, args.lms_cli_port, args.player_mac, args.stream_url,
         args.ha_url, args.ha_token, args.media_player_entity,
     ))
-
