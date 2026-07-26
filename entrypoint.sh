@@ -25,7 +25,6 @@ squeezelite \
     -n "${PLAYER_NAME}" \
     -m "${PLAYER_MAC}" \
     -o - \
-    -c pcm \
     -d slimproto=info \
     > /dev/null \
     2>/tmp/squeezelite.log &
