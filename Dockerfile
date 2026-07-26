@@ -4,7 +4,7 @@ FROM python:3.12-slim
 # Jego audio output nas nie interesuje (leci do /dev/null) - prawdziwe audio
 # ESP32 ciągnie samo, bezpośrednio z LMS przez HTTP.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends squeezelite procps \
+    && apt-get install -y --no-install-recommends squeezelite procps pv \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir aiohttp
 
