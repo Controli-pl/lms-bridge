@@ -6,6 +6,7 @@ set -e
 : "${LMS_CLI_PORT:=9090}"
 : "${PLAYER_NAME:=LMS Sendspin Bridge}"
 : "${PLAYER_MAC:=02:00:00:00:00:01}"
+: "${SAMPLE_RATE:=44100}"
 : "${HA_URL:?musisz ustawić HA_URL, np. http://192.168.1.122:8123}"
 : "${HA_TOKEN:?musisz ustawić HA_TOKEN (long-lived access token z Home Assistant)}"
 : "${ESP_MEDIA_PLAYER_ENTITY:?musisz ustawić ESP_MEDIA_PLAYER_ENTITY, np. media_player.kuchnia}"
@@ -25,10 +26,13 @@ squeezelite \
     -n "${PLAYER_NAME}" \
     -m "${PLAYER_MAC}" \
     -o - \
+    -a 16 \
+    -r "${SAMPLE_RATE}-${SAMPLE_RATE}" \
     -c pcm,mp3,flac,ogg,alac \
     -d slimproto=info \
-    > /dev/null \
-    2>/tmp/squeezelite.log &
+    2>/tmp/squeezelite.log \
+    | pv -q -L "$(( SAMPLE_RATE * 2 * 2 ))" \
+    > /dev/null &
 SQUEEZELITE_PID=$!
 echo "[entrypoint] squeezelite wystartował (PID ${SQUEEZELITE_PID})"
 
