@@ -28,7 +28,7 @@ squeezelite \
     -o - \
     -a 16 \
     -r "${SAMPLE_RATE}-${SAMPLE_RATE}" \
-    -c pcm,mp3,flac,ogg,alac \
+    -c pcm \
     -d slimproto=info \
     2>/tmp/squeezelite.log \
     | pv -q -L "$(( SAMPLE_RATE * 2 * 2 ))" \
